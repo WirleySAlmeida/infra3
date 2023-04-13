@@ -1,0 +1,28 @@
+- hosts: controlplane ## Local onde será executado
+  become: true ## Permissionamento de usuário root
+  tasks: ## Sequência de tarefas que será executada
+    - name: criando token para entrar no cluster ## Cria um token para acessar o cluster que ficará registrado no valor informado no register
+      shell: kubeadm token create --print-join-command ## Comando que será executado para criar o token
+      register: join_command_raw
+
+    - debug: ## Mensagem (resultado da execução anterior que foi armazenado em 'join_command_raw') que será exibida 
+        msg: "{{ join_command_raw.stdout }}"
+
+    - name: adicionando join command
+      set_fact:
+        join_command: "{{ join_command_raw.stdout_lines[0] }}"
+
+- hosts: workers
+  become: true
+  tasks:
+    - name: retirar o swap 
+      shell: "swapoff -a" ## Desabilita o Swap 
+
+    - name: join cluster ## Relaciona com o cluster controlplane
+      shell: "sudo {{ hostvars['controlplane'].join_command }} --ignore-preflight-errors all >> node_joined.txt"
+      args:
+        chdir: $HOME ## Diretório utilizado
+      register: join_worker
+
+    - debug: ## Mensagem (resultado da execução anterior que foi armazenado em 'join_worker') que será exibida 
+        msg: "{{ join_worker }}"

@@ -1,0 +1,78 @@
+- hosts: all      # Indica que a primeira parte do playbook será executada em todos os hosts listados no inventário, ate o controlplane.
+  become: true    # Define que as tarefas executadas no playbook precisarão de privilégios para serem executadas.
+  tasks:          # Indica o início da lista de tarefas que serão executadas nesses Hosts
+  - name: qualquer coisa pra dizer qual eh a tafera que esta sendo executada, agora sera o alterar nome   # nomeia a tarefa
+    hostname:     
+      name: '{{ new_hostname }}'  # Altera o nome do host em que a tarefa está sendo executada para o nome indicado na variável "new_hostname".
+  
+  - name: adicionar GPG do docker
+    apt_key:      # Adiciona a chave GPG que serve para verificar a integridade dos pacotes do Docker
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: adicionar repo do docker
+    apt_repository:     # Adiciona o repositório do Docker ao arquivo de repositórios do sistema.
+      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+
+  - name: instalar o docker
+    apt:                # Instala as últimas versões disponíveis do docker-ce, docker-ce-cli e containerd.io.
+      name: "{{ item }}"
+      state: latest
+      update_cache: yes
+    loop:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+
+  - name: criando diretorio da config do docker     # Cria um diretório para a configuração do Docker.
+    file: path=/etc/docker state=directory
+
+  - name: alterando driver do docker              # altera o arquivo daemon.json para incluir native.cgroupdriver=systemd
+    copy: 
+      dest: "/etc/docker/daemon.json"
+      content: | 
+        {
+        "exec-opts": ["native.cgroupdriver=systemd"]
+        }
+
+  - name: adicionar User no grupode Docker          # Adiciona o usuário "ubuntu" ao grupo "docker".
+    user:
+      name: ubuntu
+      group: docker
+
+  - name: adicionar APT Transport HTTPS             # Instala o pacote apt-transport-https
+    apt:
+      name: apt-transport-https
+      state: present
+
+  - name: adicionar GPG do k8s  # Adiciona a chave GPG necessária para verificar a integridade dos pacotes do Kubernetes
+    apt_key:
+      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      state: present
+
+  - name: adicionar repo do k8s   # Adiciona o repositório do k8s aos repositórios do sistema.
+    apt_repository: 
+      repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+      state: present
+
+  - name: instalando o kubelet    # # instala o kubelet, responsável pelo gerenciamento dos containers no kubernetes
+    apt: 
+      name: kubelet=1.22.4-00
+      state: present
+      update_cache: true
+
+  - name: instalando o kubeadm    # instala a versão 1.22.4-00 do kubeadm
+    apt: 
+      name: kubeadm=1.22.4-00
+      state: present
+      update_cache: true
+
+- hosts: controlplane     # Indica essa parte será executada apenas no host chamado "controlplane".
+  become: true
+  tasks:
+  - name: instalando o kubectl
+    apt: 
+      name: kubectl=1.22.4-00
+      state: present
+      force: true
